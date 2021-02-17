@@ -143,3 +143,100 @@ func main() {
 	}
 }
 ```
+
+---
+
+### It's easy to go, but how to stop?
+
+Long-lived programs need to cleanup.
+
+The core is Go's select statement: like a switch, but the decision is made based on the ability to communicate.
+
+```go
+select {
+case xc <- x:
+	// send x on xc
+case y := <-yc:
+	// received y from yc
+}
+```
+
+### Structure: for-select loop
+
+loop runs in its own goroutine
+
+`select` lets `loop` avoid blocking indefinitely in any one state
+
+```go
+func (s *sub) loop() {
+	// ... declare mutable state
+	for {
+		// ... set up channels for cases
+		select {
+		case <-c1:
+			// ... read/write state ...
+		case c2 <-x:
+			// ... read/write state ...
+		case y := <-c3:
+			// ... read/write state ...
+		}
+	}
+}
+```
+
+### Select and nil channels
+
+Sends and receivs on nil channels block.
+
+Select never selects a blocking case.
+
+```go
+func main() {
+	a, b := make(chan string), make(chan string)
+	go func() {
+		a <- "a"
+	}()
+	go func() {
+		b <- "b"
+	}()
+	if rand.Intn(2) == 0 {
+		a = nil
+		fmt.Println("nil a")
+	} else {
+		b = nil
+		fmt.Println("nil b")
+	}
+	select {
+	case s := <-a:
+		fmt.Println("got", s)
+	case s := <-b:
+		fmt.Println("got", s)
+	}
+}
+```
+
+by setting to nil, turn certain cases off that you don't need
+
+### Where channels fail
+
+[Concurrency Patterns in Go](https://www.youtube.com/watch?v=YEKjSzIwAdA&t=1664s&ab_channel=CodingTech)
+
+- You can create deadlocks with channels
+- Channels pass around copies, which can impact performance
+- Passing pointers to channels can create race condition
+- What about "naturally shared" structures like caches or registries?
+
+### Mutexs are not an optimal solution
+
+- Mutexes are like toilets. The longer you occupy them, the longer the queue gets
+- Read/write mutexes can only reduce the problem
+- Using multiple mutexes will cause deadlocks sonner or later
+- All-in-all not the solution we're looking for
+
+### Atomic operations
+
+- `sync.atomic` package
+- `Store`, `Load`, `Add`, `Swap`, `CompareAndSwap`
+- Mapped to thread-safe CPU instructions
+- These instructions only work on integer types
+- Only about 10 - 60x slower than their non-atomic counterparts
